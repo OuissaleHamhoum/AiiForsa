@@ -1,0 +1,1381 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Voice Interview session model used to track sessions for the voice interview feature
+model VoiceInterviewSession {
+  id             String   @id @default(uuid())
+  sessionId      String   @unique
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  streamUrl      String?
+  status         String   @default("active")
+  cv             Json?
+  jobDescription Json?
+  report         Json?
+  history        Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@map("voice_interview_sessions")
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+// Enhanced User model with core information only
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  isActive  Boolean  @default(true)
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // ===== BASIC PERSONAL INFORMATION =====
+  name              String?
+  phone             String?
+  gender            Gender?
+  birthDate         DateTime?
+  timezone          String?   @default("UTC")
+  preferredLanguage String?   @default("en")
+
+  // Location
+  address    String?
+  city       String?
+  state      String?
+  country    String?
+  postalCode String?
+
+  // ===== PROFILE & PRESENTATION =====
+  profileImage String? // URL to profile photo
+  bannerImage  String? // URL to profile banner
+  bio          String? @db.Text
+  headline     String? // Professional headline/title
+
+  // ===== PROFESSIONAL INFORMATION =====
+  currentPosition     String?
+  currentCompany      String?
+  industry            String?
+  experienceLevel     ExperienceLevel?
+  yearsExperience     Int?
+  professionalSummary String?          @db.Text
+
+  // ===== CV PARSED DATA =====
+  cvParsed Json?
+
+  // ===== CAREER PREFERENCES =====
+  desiredSalaryMin Float?
+  desiredSalaryMax Float?
+  salaryCurrency   String? @default("USD")
+
+  // ===== SETTINGS & PREFERENCES =====
+  theme Theme @default(LIGHT)
+
+  // Privacy Settings
+  profileVisibility ProfileVisibility @default(PRIVATE)
+  showEmail         Boolean           @default(false)
+  showPhone         Boolean           @default(false)
+  allowMessages     Boolean           @default(true)
+
+  // ===== AUTH & ACCOUNT STATUS =====
+  emailVerified   Boolean       @default(false)
+  emailVerifiedAt DateTime?
+  isOnboarded     Boolean       @default(false)
+  onboardedAt     DateTime?
+  lastLoginAt     DateTime?
+  lastActiveAt    DateTime?
+  accountStatus   AccountStatus @default(ACTIVE)
+  suspendedAt     DateTime?
+  suspendedReason String?
+  deletedAt       DateTime? // Soft delete
+
+  // ===== TERMS & COMPLIANCE =====
+  acceptedTermsAt         DateTime?
+  acceptedPrivacyPolicyAt DateTime?
+  acceptedMarketingAt     DateTime?
+
+  // ===== CV DATA RELATIONSHIPS =====
+  skills           UserSkill[]
+  workExperiences  UserWorkExperience[]
+  educations       UserEducation[]
+  certifications   UserCertification[]
+  languages        UserLanguage[]
+  projects         UserProject[]
+  awards           UserAward[]
+  publications     UserPublication[]
+  volunteerWork    UserVolunteerWork[]
+  references       UserReference[]
+  socialLinks      UserSocialLink[]
+  desiredJobTypes  UserDesiredJobType[]
+  desiredLocations UserDesiredLocation[]
+  jobPreferences   UserJobPreference[]
+
+  // ===== OTHER RELATIONSHIPS =====
+  settings           UserSettings?
+  documents          Document[]
+  notifications      Notification[]
+  activityLogs       ActivityLog[]
+  sentMessages       Message[]           @relation("SentMessages")
+  receivedMessages   Message[]           @relation("ReceivedMessages")
+  jobRecommendations JobRecommendation[]
+  jobApplications    JobApplication[]
+  interviews         Interview[]
+  voiceInterviewSessions VoiceInterviewSession[]
+  rates              Rate[]
+  feedbacks          Feedback[]
+
+  // Resumes (CV Builder)
+  resumes Resume[]
+
+  // ===== COMMUNITY RELATIONSHIPS =====
+  posts    Post[]
+  comments Comment[]
+  likes    Like[]
+
+  // ===== XP & GAMIFICATION =====
+  xp                       Int                        @default(0)
+  level                    Int                        @default(0)
+  achievements             UserAchievement[]
+  badges                   UserBadge[]
+  dailyChallengeCompletions DailyChallengeCompletion[]
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([accountStatus])
+  @@index([createdAt])
+  @@index([industry])
+  @@index([experienceLevel])
+  @@map("users")
+}
+
+// User Settings (separate table for complex preferences)
+model UserSettings {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Privacy Settings
+  profileVisibility       ProfileVisibility @default(PRIVATE)
+  showExperience          Boolean           @default(true)
+  showEducation           Boolean           @default(true)
+  showSkills              Boolean           @default(true)
+  allowMessages           Boolean           @default(true)
+  allowJobRecommendations Boolean           @default(true)
+
+  // Notification Settings
+  emailJobAlerts          Boolean @default(true)
+  emailInterviewReminders Boolean @default(true)
+  emailApplicationUpdates Boolean @default(true)
+  emailWeeklySummary      Boolean @default(true)
+  emailMarketingContent   Boolean @default(false)
+
+  inAppJobAlerts          Boolean @default(true)
+  inAppInterviewReminders Boolean @default(true)
+  inAppApplicationUpdates Boolean @default(true)
+  inAppMessages           Boolean @default(true)
+
+  // Dashboard Settings
+  defaultView     String? @default("kanban") // kanban, list, calendar
+  dashboardLayout Json? // Custom dashboard configuration
+  favoriteFilters Json? // Saved filter presets
+
+  // Advanced Settings
+  autoApplyWithProfile    Boolean @default(false)
+  trackApplications       Boolean @default(true)
+  enableAIRecommendations Boolean @default(true)
+  dataRetentionDays       Int?    @default(365)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================================
+// CV DATA MODELS
+// ============================================================================
+
+enum SkillLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum LanguageProficiency {
+  NATIVE
+  FLUENT
+  PROFESSIONAL
+  LIMITED
+  BASIC
+}
+
+enum SocialLinkType {
+  LINKEDIN
+  GITHUB
+  PORTFOLIO
+  WEBSITE
+  TWITTER
+  YOUTUBE
+  INSTAGRAM
+  FACEBOOK
+  OTHER
+}
+
+// User Skills
+model UserSkill {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  level           SkillLevel
+  yearsExperience Int?
+  category        String? // e.g., "Programming", "Design", "Management"
+  endorsed        Boolean    @default(false)
+  order           Int?       @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@index([category])
+  @@map("user_skills")
+}
+
+// Work Experience
+model UserWorkExperience {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  jobTitle    String
+  company     String
+  location    String?
+  startDate   DateTime
+  endDate     DateTime?
+  isCurrent   Boolean   @default(false)
+  description String?   @db.Text
+  order       Int?      @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([startDate])
+  @@map("user_work_experiences")
+}
+
+// Education
+model UserEducation {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  degree       String
+  fieldOfStudy String?
+  institution  String
+  location     String?
+  startDate    DateTime
+  endDate      DateTime?
+  isCurrent    Boolean   @default(false)
+  gpa          String?
+  description  String?   @db.Text
+  order        Int?      @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([startDate])
+  @@map("user_educations")
+}
+
+// Certifications
+model UserCertification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name          String
+  issuer        String
+  issueDate     DateTime
+  expiryDate    DateTime?
+  credentialId  String?
+  credentialUrl String?
+  description   String?   @db.Text
+  order         Int?      @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([issueDate])
+  @@map("user_certifications")
+}
+
+// Languages
+model UserLanguage {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  language    String
+  proficiency LanguageProficiency
+  order       Int?                @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, language])
+  @@index([userId])
+  @@map("user_languages")
+}
+
+// Projects
+model UserProject {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String?   @db.Text
+  role         String?
+  startDate    DateTime?
+  endDate      DateTime?
+  isCurrent    Boolean   @default(false)
+  url          String?
+  technologies String? // Comma-separated list
+  highlights   String?   @db.Text // Key achievements
+  order        Int?      @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("user_projects")
+}
+
+// Awards & Honors
+model UserAward {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String
+  issuer      String
+  date        DateTime
+  description String?  @db.Text
+  order       Int?     @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([date])
+  @@map("user_awards")
+}
+
+// Publications
+model UserPublication {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title           String
+  publisher       String?
+  publicationDate DateTime
+  url             String?
+  description     String?  @db.Text
+  authors         String? // Comma-separated list of authors
+  order           Int?     @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([publicationDate])
+  @@map("user_publications")
+}
+
+// Volunteer Work
+model UserVolunteerWork {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  role         String
+  organization String
+  startDate    DateTime?
+  endDate      DateTime?
+  isCurrent    Boolean   @default(false)
+  description  String?   @db.Text
+  order        Int?      @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("user_volunteer_work")
+}
+
+// References
+model UserReference {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name         String
+  position     String
+  company      String
+  email        String?
+  phone        String?
+  relationship String?
+  description  String? @db.Text
+  order        Int?    @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("user_references")
+}
+
+// Social Links
+model UserSocialLink {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      SocialLinkType
+  url       String
+  label     String? // Custom label for OTHER type
+  isPrimary Boolean        @default(false)
+  order     Int?           @default(0) // For ordering in CV
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("user_social_links")
+}
+
+// Desired Job Types
+model UserDesiredJobType {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  jobType  JobType
+  priority Int?    @default(1) // 1=primary, 2=secondary, etc.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, jobType])
+  @@index([userId])
+  @@map("user_desired_job_types")
+}
+
+// Desired Locations
+model UserDesiredLocation {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  city     String?
+  state    String?
+  country  String
+  remote   Boolean @default(false)
+  priority Int?    @default(1) // 1=primary, 2=secondary, etc.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([country])
+  @@map("user_desired_locations")
+}
+
+// Job Search Preferences
+model UserJobPreference {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  preferenceType String // 'job_title', 'industry', 'company_size', 'benefit'
+  value          String
+  priority       Int?   @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([preferenceType])
+  @@map("user_job_preferences")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  PREFER_NOT_TO_SAY
+  OTHER
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+  PENDING_VERIFICATION
+  DELETED
+}
+
+enum ProfileVisibility {
+  PUBLIC
+  PRIVATE
+  CONNECTIONS_ONLY
+}
+
+enum RecommendationStatus {
+  ADDED
+  NOT_ADDED
+  APPLIED
+}
+
+model JobRecommendation {
+  recommendationId String               @id @default(uuid())
+  userId           String
+  jobId            String
+  matchScore       Int
+  description      String?
+  status           RecommendationStatus @default(NOT_ADDED)
+  generatedAt      DateTime             @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// ============================================================================
+// JOB APPLICATION MANAGEMENT
+// ============================================================================
+
+enum ApplicationStatus {
+  WISHLIST // Saved for later
+  APPLIED // Application submitted
+  SCREENING // Resume screening
+  ASSESSMENT // Online assessment
+  INTERVIEW // Interview scheduled/completed
+  OFFER // Offer received
+  ACCEPTED // Offer accepted
+  REJECTED // Application rejected
+  WITHDRAWN // Withdrawn by user
+  ON_HOLD // Application on hold
+}
+
+enum ApplicationSource {
+  LINKEDIN
+  INDEED
+  GLASSDOOR
+  COMPANY_WEBSITE
+  REFERRAL
+  RECRUITER
+  JOB_BOARD
+  OTHER
+}
+
+model JobApplication {
+  applicationId String @id @default(uuid())
+  userId        String
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Job Details (can be external or internal Job reference)
+  jobId       Int?
+  job         Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  jobTitle    String
+  companyName String
+  location    String?
+  remote      Boolean @default(false)
+  jobUrl      String?
+
+  // Application Details
+  status          ApplicationStatus @default(WISHLIST)
+  source          ApplicationSource @default(OTHER)
+  salary          Float?
+  salaryCurrency  String?           @default("USD")
+  jobType         JobType?
+  experienceLevel ExperienceLevel?
+
+  // Documents
+  cvId          String?
+  cv            Document? @relation("ApplicationCV", fields: [cvId], references: [id])
+  coverLetterId String?
+  coverLetter   Document? @relation("ApplicationCoverLetter", fields: [coverLetterId], references: [id])
+
+  // Timeline
+  appliedAt        DateTime  @default(now())
+  firstResponseAt  DateTime?
+  interviewDate    DateTime?
+  offerReceivedAt  DateTime?
+  responseDeadline DateTime?
+  followUpDate     DateTime?
+
+  // Additional Info
+  notes        String? @db.Text
+  contactName  String?
+  contactEmail String?
+  contactPhone String?
+  priority     Int?    @default(0) // 0=none, 1=low, 2=medium, 3=high
+
+  // Tags & Categories
+  tags Tag[]
+
+  // Metadata
+  isExternal Boolean   @default(false)
+  isFavorite Boolean   @default(false)
+  isArchived Boolean   @default(false)
+  archivedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([appliedAt])
+  @@index([companyName])
+  @@index([isArchived])
+  @@map("job_applications")
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+  FREELANCE
+}
+
+enum ExperienceLevel {
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+  PAUSED
+}
+
+model Job {
+  id               Int              @id @default(autoincrement())
+  title            String
+  companyName      String
+  companyId        String?
+  company          Company?         @relation(fields: [companyId], references: [id])
+  location         String?
+  type             JobType?
+  description      String?          @db.Text
+  requirements     String?          @db.Text
+  responsibilities String?          @db.Text
+  benefits         String?          @db.Text
+  salaryMin        Float?
+  salaryMax        Float?
+  currency         String?          @default("USD")
+  experienceLevel  ExperienceLevel?
+  remote           Boolean          @default(false)
+  skills           Json? // Array of required skills
+  postedAt         DateTime         @default(now())
+  expiresAt        DateTime?
+  status           JobStatus        @default(OPEN)
+
+  // SEO & Tracking
+  slug        String? @unique
+  externalUrl String?
+  source      String?
+
+  // Relations
+  applications JobApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([companyName])
+  @@index([type])
+  @@index([remote])
+  @@index([postedAt])
+}
+
+// Interviewing models
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum InterviewCategory {
+  TECHNICAL
+  BEHAVIORAL
+  DESIGN
+  MANAGEMENT
+}
+
+model Interview {
+  id              String            @id @default(uuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id])
+  description     String
+  durationMinutes Int
+  nbrQuestions    Int
+  difficulty      Difficulty
+  category        InterviewCategory
+  focusArea       String?
+  questions       Question[]
+  rates           Rate[]
+  feedbacks       Feedback[]
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model Question {
+  id          String    @id @default(uuid())
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id])
+  content     String
+  answer      Answer?
+}
+
+model Answer {
+  id         String     @id @default(uuid())
+  questionId String     @unique
+  question   Question   @relation(fields: [questionId], references: [id])
+  content    String
+  rates      Rate[]
+  feedbacks  Feedback[]
+}
+
+model Rate {
+  id          String     @id @default(uuid())
+  value       Int
+  authorId    String?
+  author      User?      @relation(fields: [authorId], references: [id])
+  interviewId String?
+  interview   Interview? @relation(fields: [interviewId], references: [id])
+  answerId    String?
+  answer      Answer?    @relation(fields: [answerId], references: [id])
+  createdAt   DateTime   @default(now())
+}
+
+model Feedback {
+  id          String     @id @default(uuid())
+  content     String
+  authorId    String?
+  author      User?      @relation(fields: [authorId], references: [id])
+  interviewId String?
+  interview   Interview? @relation(fields: [interviewId], references: [id])
+  answerId    String?
+  answer      Answer?    @relation(fields: [answerId], references: [id])
+  createdAt   DateTime   @default(now())
+}
+
+// ============================================================================
+// COMPANY MANAGEMENT
+// ============================================================================
+
+model Company {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  slug        String? @unique
+  description String? @db.Text
+  industry    String?
+  size        String? // e.g., "1-10", "11-50", "51-200", etc.
+  website     String?
+  logoUrl     String?
+  linkedinUrl String?
+  location    String?
+
+  // Relations
+  jobs Job[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([industry])
+}
+
+// ============================================================================
+// DOCUMENT MANAGEMENT
+// ============================================================================
+
+enum DocumentType {
+  CV
+  COVER_LETTER
+  PORTFOLIO
+  CERTIFICATE
+  TRANSCRIPT
+  RECOMMENDATION
+  OTHER
+}
+
+enum DocumentVisibility {
+  PRIVATE
+  PUBLIC
+  SHARED
+}
+
+// ============================================================================
+// RESUME BUILDER & MANAGEMENT (Section-Based with AI Integration)
+// ============================================================================
+
+enum ResumeStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ResumeSectionType {
+  PROFILE
+  SUMMARY
+  EXPERIENCE
+  EDUCATION
+  SKILLS
+  CERTIFICATIONS
+  PROJECTS
+  LANGUAGES
+  CUSTOM
+}
+
+model Resume {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Resume Metadata
+  title    String       @default("My Resume")
+  userName String
+  status   ResumeStatus @default(DRAFT)
+
+  // Full Resume data stored as JSON blob (for compatibility)
+  data Json
+
+  // Optional uploaded file info
+  filePath String?
+  fileName String?
+  mimeType String?
+  fileSize Int?
+
+  // AI Analysis
+  aiScore        Float? // Overall AI score
+  lastReviewedAt DateTime?
+
+  // Template & Styling
+  templateId   String? @default("modern-1")
+  customStyles Json? // Store custom styling preferences
+
+  // Shareable Public Link
+  shareSlug    String?   @unique // URL-safe unique identifier for public sharing
+  isPublic     Boolean   @default(false) // Whether resume is publicly accessible
+  shareViews   Int       @default(0) // Track view count
+  shareExpiry  DateTime? // Optional expiry date for shared link
+  lastViewedAt DateTime? // Last time resume was viewed publicly
+
+  // Sections (structured data)
+  sections ResumeSection[]
+
+  // AI Suggestions History
+  suggestions ResumeSuggestion[]
+
+  // Career Advisor Results
+  careerAdvice Json? // Store career advisor recommendations
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([shareSlug])
+  @@index([isPublic])
+  @@map("resumes")
+}
+
+// Resume Sections - Each section can be managed independently
+model ResumeSection {
+  id       String @id @default(uuid())
+  resumeId String
+  resume   Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  type    ResumeSectionType
+  title   String // Display title (e.g., "Work Experience", "Education")
+  content Json // Section-specific structured data
+  order   Int               @default(0) // Order in the Resume
+
+  // AI Analysis for this section
+  aiScore Float?
+
+  // Suggestions for this section
+  suggestions ResumeSuggestion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resumeId])
+  @@index([type])
+  @@map("resume_sections")
+}
+
+// AI Suggestions for Resume improvement
+model ResumeSuggestion {
+  id       String  @id @default(uuid())
+  resumeId String?
+  resume   Resume? @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  sectionId String?
+  section   ResumeSection? @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  // Suggestion details
+  type      String // "rewrite", "improvement", "ats", "grammar", etc.
+  original  Json // Original content
+  suggested Json // Suggested content
+  reason    String @db.Text // Why this change is suggested
+
+  // User action
+  status    String    @default("pending") // "pending", "accepted", "rejected"
+  appliedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resumeId])
+  @@index([sectionId])
+  @@index([status])
+  @@map("resume_suggestions")
+}
+
+model Document {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Document Info
+  name        String
+  type        DocumentType
+  description String?
+  fileUrl     String // S3, cloud storage, or local path
+  fileName    String
+  fileSize    Int // in bytes
+  mimeType    String
+
+  // Metadata
+  version    Int                @default(1)
+  visibility DocumentVisibility @default(PRIVATE)
+  isDefault  Boolean            @default(false) // Default CV/Cover Letter
+
+  // Template & Styling
+  templateId String?
+  styling    Json? // Store styling preferences
+
+  // Relations
+  cvApplications          JobApplication[] @relation("ApplicationCV")
+  coverLetterApplications JobApplication[] @relation("ApplicationCoverLetter")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([type])
+  @@index([isDefault])
+}
+
+// ============================================================================
+// TAGS & CATEGORIZATION
+// ============================================================================
+
+model Tag {
+  id     String  @id @default(uuid())
+  name   String
+  color  String? @default("#3B82F6") // Hex color
+  userId String?
+
+  // Relations
+  applications JobApplication[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, userId])
+  @@index([userId])
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+enum NotificationType {
+  APPLICATION_UPDATE
+  INTERVIEW_REMINDER
+  DEADLINE_REMINDER
+  JOB_RECOMMENDATION
+  MESSAGE
+  SYSTEM
+  ACHIEVEMENT
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Content
+  type      NotificationType
+  priority  NotificationPriority @default(NORMAL)
+  title     String
+  message   String               @db.Text
+  actionUrl String?
+
+  // Status
+  isRead     Boolean   @default(false)
+  readAt     DateTime?
+  isArchived Boolean   @default(false)
+
+  // Metadata
+  metadata Json? // Additional context data
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// ACTIVITY LOG & ANALYTICS
+// ============================================================================
+
+enum ActivityType {
+  LOGIN
+  LOGOUT
+  PROFILE_UPDATE
+  APPLICATION_CREATED
+  APPLICATION_UPDATED
+  APPLICATION_DELETED
+  DOCUMENT_UPLOADED
+  DOCUMENT_DELETED
+  INTERVIEW_SCHEDULED
+  JOB_VIEWED
+  COMPANY_VIEWED
+  SETTINGS_CHANGED
+  PASSWORD_CHANGED
+  EMAIL_VERIFIED
+}
+
+model ActivityLog {
+  id     String  @id @default(uuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Activity Details
+  type        ActivityType
+  action      String
+  description String?
+
+  // Context
+  entityType String? // e.g., "JobApplication", "Document", "User"
+  entityId   String?
+  metadata   Json? // Additional context
+
+  // Request Info
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+}
+
+// ============================================================================
+// MESSAGING SYSTEM (Optional - for future features)
+// ============================================================================
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  READ
+  ARCHIVED
+  DELETED
+}
+
+model Message {
+  id         String @id @default(uuid())
+  senderId   String
+  sender     User   @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId String
+  receiver   User   @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  subject String?
+  content String        @db.Text
+  status  MessageStatus @default(SENT)
+
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// COMMUNITY FEATURES
+// ============================================================================
+
+model Post {
+  id       String  @id @default(cuid())
+  caption  String
+  imageUrl String?
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  likes    Like[]
+  comments Comment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("posts")
+}
+
+model Comment {
+  id   String @id @default(cuid())
+  text String
+
+  authorId String
+  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([postId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+model Like {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
+  @@map("likes")
+}
+
+// ============================================================================
+// XP & GAMIFICATION SYSTEM
+// ============================================================================
+
+// XP Achievement Definition - defines all possible achievements
+model AchievementDefinition {
+  id          String  @id @default(uuid())
+  key         String  @unique // unique key like "DAILY_SPARK_A", "APPLICATION_ACE"
+  title       String // Display name
+  description String? @db.Text
+  xpReward    Int // XP points awarded
+  icon        String? // Icon name or URL
+  category    AchievementCategory @default(GENERAL)
+  repeatable  Boolean @default(false) // Can be earned multiple times
+  maxRepeats  Int?    // Max times can be earned (null = unlimited if repeatable)
+  
+  // Conditions for automatic awarding
+  conditionType   AchievementConditionType?
+  conditionValue  Int? // e.g., 5 for "5 applications"
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userAchievements UserAchievement[]
+
+  @@index([key])
+  @@index([category])
+  @@map("achievement_definitions")
+}
+
+// User's earned achievements
+model UserAchievement {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  achievementDefId String
+  achievementDef   AchievementDefinition @relation(fields: [achievementDefId], references: [id], onDelete: Cascade)
+
+  claimed   Boolean  @default(false) // Whether user has redeemed/claimed
+  claimedAt DateTime?
+  meta      Json?    // Additional metadata
+  earnCount Int      @default(1) // For repeatable achievements
+
+  awardedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, achievementDefId]) // One record per achievement per user
+  @@index([userId])
+  @@index([achievementDefId])
+  @@index([claimed])
+  @@map("user_achievements")
+}
+
+// Badge Definition - level-based badges
+model BadgeDefinition {
+  id          String  @id @default(uuid())
+  level       Int     @unique // Level required to earn this badge
+  name        String
+  description String?
+  icon        String? // Icon name or URL
+  color       String? // Badge color
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userBadges UserBadge[]
+
+  @@index([level])
+  @@map("badge_definitions")
+}
+
+// User's earned badges
+model UserBadge {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  badgeDefId String
+  badgeDef   BadgeDefinition @relation(fields: [badgeDefId], references: [id], onDelete: Cascade)
+
+  awardedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  @@unique([userId, badgeDefId])
+  @@index([userId])
+  @@index([badgeDefId])
+  @@map("user_badges")
+}
+
+// Daily Challenge Tracking
+model DailyChallenge {
+  id          String @id @default(uuid())
+  key         String // Challenge type key
+  title       String
+  description String?
+  xpReward    Int    @default(30)
+  icon        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  completions DailyChallengeCompletion[]
+
+  @@index([key])
+  @@map("daily_challenges")
+}
+
+// User's daily challenge completions
+model DailyChallengeCompletion {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  challengeId String
+  challenge   DailyChallenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+
+  completedAt DateTime @default(now())
+  date        DateTime @db.Date // The date this was completed (for daily tracking)
+
+  @@unique([userId, challengeId, date]) // One completion per challenge per day
+  @@index([userId])
+  @@index([challengeId])
+  @@index([date])
+  @@map("daily_challenge_completions")
+}
+
+// Achievement categories
+enum AchievementCategory {
+  DAILY       // Daily challenges
+  WEEKLY      // Weekly goals
+  CAREER      // Career-related (applications, interviews)
+  PROFILE     // Profile completion
+  COMMUNITY   // Posts, comments, interactions
+  CV          // CV/Resume related
+  MILESTONE   // General milestones
+  GENERAL     // Other
+}
+
+// Condition types for automatic achievement awarding
+enum AchievementConditionType {
+  APPLICATION_COUNT    // Number of job applications
+  INTERVIEW_COUNT      // Number of interviews
+  POST_COUNT          // Number of posts
+  COMMENT_COUNT       // Number of comments
+  INTERACTION_COUNT   // Number of interactions (likes, etc.)
+  CV_COUNT            // Number of CVs uploaded/created
+  PROJECT_COUNT       // Number of projects
+  SKILL_COUNT         // Number of skills
+  EXPERIENCE_COUNT    // Number of work experiences
+  PROFILE_COMPLETE    // Profile completion percentage
+  ADVICE_CONSULTATION // Career advice consultations
+  ADVICE_STEP         // Individual advice steps
+}

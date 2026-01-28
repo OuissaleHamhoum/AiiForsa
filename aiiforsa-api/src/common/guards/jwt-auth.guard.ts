@@ -1,0 +1,67 @@
+import {
+  Injectable,
+  ExecutionContext,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import { JwtService } from '@nestjs/jwt';
+import { Request } from 'express';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { Role } from '@prisma/client';
+
+// Simplified user type for JWT payload
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: Role;
+}
+
+interface JwtPayload {
+  sub: string;
+  email: string;
+  role: Role;
+}
+
+@Injectable()
+export class JwtAuthGuard {
+  constructor(
+    private reflector: Reflector,
+    private jwtService: JwtService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    if (isPublic) return true;
+
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user?: AuthUser }>();
+
+    const token = this.extractTokenFromHeader(request);
+    if (!token) throw new UnauthorizedException('No token provided');
+
+    try {
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
+
+      // Set user info from JWT payload (no database call for performance)
+      request.user = {
+        id: payload.sub,
+        email: payload.email,
+        role: payload.role,
+      };
+    } catch {
+      throw new UnauthorizedException('Invalid token');
+    }
+
+    return true;
+  }
+
+  private extractTokenFromHeader(request: Request): string | undefined {
+    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    return type === 'Bearer' ? token : undefined;
+  }
+}

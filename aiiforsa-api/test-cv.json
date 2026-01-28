@@ -1,0 +1,15 @@
+{
+  "name": "Test CV",
+  "data": {
+    "summary": "Full-Stack Developer",
+    "skills": ["JavaScript", "TypeScript", "NestJS"],
+    "experience": [
+      {
+        "title": "Backend Developer",
+        "company": "Tech Corp",
+        "startDate": "2023-01-01",
+        "endDate": "2024-01-01"
+      }
+    ]
+  }
+}

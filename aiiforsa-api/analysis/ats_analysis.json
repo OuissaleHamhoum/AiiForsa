@@ -1,0 +1,155 @@
+{
+  "profile": {
+    "errors": [
+      "Missing professional title (e.g., 'Full-Stack Developer', 'Web Engineer').",
+      "Missing location (city + country or 'Remote').",
+      "Missing at least one contact method beyond email (e.g., LinkedIn, GitHub, phone)."
+    ],
+    "warnings": [
+      "Summary is 4 lines but could be more concise (2–4 lines).",
+      "Summary lacks domain-specific keywords (e.g., 'MERN Stack', 'Flask')."
+    ],
+    "infos": [
+      "Consider adding a LinkedIn/GitHub link for professional networking."
+    ],
+    "advice": [
+      "Add a clear title like 'Full-Stack Developer' to align with skills.",
+      "Include location (e.g., 'Tunis, Tunisia') for regional context.",
+      "Add LinkedIn/GitHub to links for verifiability."
+    ]
+  },
+  "workExperience": {
+    "errors": [
+      "All job entries lack job titles (e.g., 'Frontend Developer', 'Backend Intern').",
+      "All job entries lack descriptions (bullets).",
+      "Dates are inconsistent (e.g., 'June 2025' start date for future roles)."
+    ],
+    "warnings": [
+      "Future roles (2025) should be labeled as 'Expected' or 'Planned'.",
+      "Missing technologies/tools used in roles (e.g., 'Python/Flask', 'Symfony')."
+    ],
+    "infos": [
+      "Consider adding metrics (e.g., 'Reduced API latency by 30%')."
+    ],
+    "advice": [
+      "Fill in job titles and add 2–4 XYZ-pattern bullets per role.",
+      "Remove or clarify future roles (e.g., 'Expected Start: June 2025').",
+      "Add tools used (e.g., 'Built REST APIs with Spring Boot')."
+    ]
+  },
+  "projects": {
+    "errors": [
+      "No projects listed."
+    ],
+    "warnings": [
+      "If no projects, consider adding academic/personal projects."
+    ],
+    "infos": [
+      "Projects could showcase skills like 'MERN Stack' or 'Flutter'."
+    ],
+    "advice": [
+      "Add 1–2 projects with GitHub links and XYZ descriptions (e.g., 'Developed a Flutter app with 5k users')."
+    ]
+  },
+  "skills": {
+    "errors": [
+      "No core skills aligned with the declared domain (e.g., 'Web Development')."
+    ],
+    "warnings": [
+      "Skills list includes generic terms ('Analytic Thinking', 'Team Work').",
+      "No grouping (e.g., 'Technical Skills', 'Soft Skills')."
+    ],
+    "infos": [
+      "Consider adding proficiency levels (e.g., 'Python — Advanced')."
+    ],
+    "advice": [
+      "Group skills (e.g., 'Backend: Flask, Spring Boot; Frontend: Angular, Flutter').",
+      "Remove or specify vague entries (e.g., 'Analytic Thinking' → 'Data Analysis with Python')."
+    ]
+  },
+  "education": {
+    "errors": [
+      "Missing degree type (e.g., 'Bachelor’s in Web Development').",
+      "Missing expected graduation date (e.g., 'Expected June 2025')."
+    ],
+    "warnings": [
+      "No GPA or relevant coursework listed."
+    ],
+    "infos": [
+      "Consider adding key modules (e.g., 'Advanced Web Technologies')."
+    ],
+    "advice": [
+      "Standardize degree (e.g., 'Bachelor of Engineering in Web Development').",
+      "Add expected graduation date (e.g., 'Expected June 2025')."
+    ]
+  },
+  "certifications": {
+    "errors": [
+      "No certifications listed."
+    ],
+    "warnings": [
+      "If none, consider adding relevant online courses (e.g., Coursera, Udemy)."
+    ],
+    "infos": [
+      "Certifications could boost credibility (e.g., 'AWS Certified Developer')."
+    ],
+    "advice": [
+      "Add 1–2 certifications if applicable (e.g., 'Google Cloud Associate')."
+    ]
+  },
+  "languages": {
+    "errors": [
+      "Only one language listed ('Arabic')."
+    ],
+    "warnings": [
+      "Proficiency level 'intermediate' is vague (use 'B1/B2')."
+    ],
+    "infos": [
+      "Consider adding English/French if proficient."
+    ],
+    "advice": [
+      "Add English/French with levels (e.g., 'English — B2')."
+    ]
+  },
+  "grammarAndStyle": {
+    "errors": [
+      "Summary has minor punctuation issues (e.g., '22 year old' → '22-year-old')."
+    ],
+    "warnings": [
+      "Summary could be more concise (e.g., 'Full-Stack Developer student at Esprit...')."
+    ],
+    "infos": [
+      "Consider using consistent capitalization (e.g., 'Full-Stack' not 'Web development')."
+    ],
+    "advice": [
+      "Edit summary for clarity and conciseness."
+    ]
+  },
+  "xyzPattern": {
+    "errors": [
+      "No XYZ-pattern bullets in experience/projects."
+    ],
+    "warnings": [
+      "All descriptions are missing."
+    ],
+    "infos": [
+      "XYZ bullets could highlight achievements (e.g., 'Improved load time by 20% using caching')."
+    ],
+    "advice": [
+      "Add XYZ bullets to experience/projects (e.g., 'Built a Flutter app with 5k users')."
+    ]
+  },
+  "atsCompliance": {
+    "score": 35,
+    "issues": [
+      "Missing core sections (projects, certifications).",
+      "Lack of job titles, descriptions, and metrics.",
+      "Incomplete education and skills alignment."
+    ],
+    "advice": [
+      "Fill all sections with structured, keyword-rich content.",
+      "Add verifiable links (GitHub, LinkedIn).",
+      "Ensure consistency in formatting (dates, titles, bullets)."
+    ]
+  }
+}

@@ -1,0 +1,348 @@
+# Azure DevOps Pipeline for AIIFORSA API Deployment
+# This pipeline builds, tests, and deploys the NestJS API to Azure Container Instances
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - README.md
+      - docs/
+      - .github/
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - README.md
+      - docs/
+      - .github/
+
+variables:
+  # Build variables
+  - name: dockerRegistryServiceConnection
+    value: 'aiiforsa-acr-connection'
+  - name: imageRepository
+    value: 'aiiforsa/api'
+  - name: containerRegistry
+    value: 'aiiforsaacr.azurecr.io'
+  - name: dockerfilePath
+    value: 'Dockerfile.production'
+  - name: tag
+    value: '$(Build.BuildId)'
+
+  # Azure variables
+  - name: azureSubscription
+    value: 'aiiforsa-subscription'
+  - name: resourceGroupName
+    value: 'aiiforsa-rg'
+  - name: location
+    value: 'East US'
+  - name: containerAppName
+    value: 'aiiforsa-api'
+  - name: containerAppEnvironment
+    value: 'aiiforsa-env'
+
+  # Environment variables (override in pipeline variables)
+  - name: NODE_ENV
+    value: 'production'
+  - name: PORT
+    value: '4050'
+  - name: API_PREFIX
+    value: '/api/v1'
+
+stages:
+  # Stage 1: Build and Test
+  - stage: Build
+    displayName: 'Build and Test'
+    jobs:
+      - job: Build
+        displayName: 'Build and Test Application'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          # Checkout code
+          - checkout: self
+            fetchDepth: 1
+
+          # Setup Node.js
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+              displayName: 'Setup Node.js 20.x'
+
+          # Cache node_modules
+          - task: Cache@2
+            inputs:
+              key: 'npm | "$(Agent.OS)" | package-lock.json'
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+              path: $(npm_config_cache)
+            displayName: 'Cache npm packages'
+
+          # Install dependencies
+          - script: npm ci
+            displayName: 'Install dependencies'
+
+          # Lint code
+          - script: npm run lint
+            displayName: 'Run ESLint'
+
+          # Run unit tests
+          - script: npm run test
+            displayName: 'Run unit tests'
+
+          # Build application
+          - script: npm run build
+            displayName: 'Build application'
+
+          # Run E2E tests (optional - can be skipped for faster builds)
+          - script: |
+              docker-compose up -d postgres redis
+              sleep 30
+              npm run test:e2e:auth
+            displayName: 'Run E2E tests'
+            continueOnError: true
+
+          # Build and push Docker image
+          - task: Docker@2
+            displayName: 'Build and push Docker image'
+            inputs:
+              containerRegistry: $(dockerRegistryServiceConnection)
+              repository: $(imageRepository)
+              command: 'buildAndPush'
+              dockerfile: $(dockerfilePath)
+              tags: |
+                $(tag)
+                latest
+
+          # Publish build artifacts
+          - publish: $(System.DefaultWorkingDirectory)
+            artifact: drop
+            displayName: 'Publish build artifacts'
+
+  # Stage 2: Deploy to Development
+  - stage: DeployDev
+    displayName: 'Deploy to Development'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/develop'))
+    jobs:
+      - deployment: DeployDev
+        displayName: 'Deploy to Development Environment'
+        environment: 'development'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Download build artifacts
+                - download: current
+                  artifact: drop
+
+                # Deploy to Azure Container Instances (Development)
+                - task: AzureCLI@2
+                  displayName: 'Deploy to Azure Container Instances (Dev)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Set variables
+                      RESOURCE_GROUP="aiiforsa-dev-rg"
+                      CONTAINER_NAME="aiiforsa-api-dev"
+                      IMAGE_NAME="$(containerRegistry)/$(imageRepository):$(tag)"
+
+                      echo "Deploying to development environment..."
+
+                      # Create resource group if it doesn't exist
+                      az group create --name $RESOURCE_GROUP --location $(location) --output none
+
+                      # Create container instance
+                      az container create \
+                        --resource-group $RESOURCE_GROUP \
+                        --name $CONTAINER_NAME \
+                        --image $IMAGE_NAME \
+                        --cpu 1 \
+                        --memory 2 \
+                        --ports 4050 \
+                        --environment-variables \
+                          NODE_ENV=development \
+                          PORT=4050 \
+                          API_PREFIX='/api/v1' \
+                        --dns-name-label aiiforsa-api-dev \
+                        --output none
+
+                      # Get the public IP
+                      PUBLIC_IP=$(az container show --resource-group $RESOURCE_GROUP --name $CONTAINER_NAME --query ipAddress.ip --output tsv)
+                      echo "Development deployment completed. API available at: http://$PUBLIC_IP:4050"
+
+  # Stage 3: Deploy to Production
+  - stage: DeployProd
+    displayName: 'Deploy to Production'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployProd
+        displayName: 'Deploy to Production Environment'
+        environment: 'production'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                # Download build artifacts
+                - download: current
+                  artifact: drop
+
+                # Deploy to Azure Container App (Production)
+                - task: AzureCLI@2
+                  displayName: 'Deploy to Azure Container App (Prod)'
+                  inputs:
+                    azureSubscription: $(azureSubscription)
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      # Set variables
+                      RESOURCE_GROUP="$(resourceGroupName)"
+                      CONTAINER_APP_NAME="$(containerAppName)"
+                      CONTAINER_APP_ENV="$(containerAppEnvironment)"
+                      IMAGE_NAME="$(containerRegistry)/$(imageRepository):$(tag)"
+
+                      echo "Deploying to production environment..."
+
+                      # Create resource group if it doesn't exist
+                      az group create --name $RESOURCE_GROUP --location $(location) --output none
+
+                      # Create container app environment if it doesn't exist
+                      az containerapp env create \
+                        --name $CONTAINER_APP_ENV \
+                        --resource-group $RESOURCE_GROUP \
+                        --location $(location) \
+                        --output none || echo "Container app environment already exists"
+
+                      # Create or update container app
+                      az containerapp create \
+                        --name $CONTAINER_APP_NAME \
+                        --resource-group $RESOURCE_GROUP \
+                        --environment $CONTAINER_APP_ENV \
+                        --image $IMAGE_NAME \
+                        --target-port 4050 \
+                        --ingress external \
+                        --cpu 0.5 \
+                        --memory 1.0Gi \
+                        --min-replicas 1 \
+                        --max-replicas 10 \
+                        --scale-rule-name http-scale \
+                        --scale-rule-http-concurrency 100 \
+                        --env-vars \
+                          NODE_ENV=production \
+                          PORT=4050 \
+                          API_PREFIX='/api/v1' \
+                          DATABASE_URL='$(DATABASE_URL)' \
+                          REDIS_HOST='$(REDIS_HOST)' \
+                          REDIS_PORT='$(REDIS_PORT)' \
+                          REDIS_PASSWORD='$(REDIS_PASSWORD)' \
+                          JWT_SECRET='$(JWT_SECRET)' \
+                          JWT_EXPIRATION_TIME='$(JWT_EXPIRATION_TIME)' \
+                          JWT_REFRESH_EXPIRATION_TIME='$(JWT_REFRESH_EXPIRATION_TIME)' \
+                          CORS_ORIGIN='$(CORS_ORIGIN)' \
+                          MAIL_HOST='$(MAIL_HOST)' \
+                          MAIL_PORT='$(MAIL_PORT)' \
+                          MAIL_USER='$(MAIL_USER)' \
+                          MAIL_PASSWORD='$(MAIL_PASSWORD)' \
+                          MAIL_FROM='$(MAIL_FROM)' \
+                          THROTTLE_SHORT_LIMIT='$(THROTTLE_SHORT_LIMIT)' \
+                          THROTTLE_MEDIUM_LIMIT='$(THROTTLE_MEDIUM_LIMIT)' \
+                          THROTTLE_LONG_LIMIT='$(THROTTLE_LONG_LIMIT)' \
+                          BCRYPT_ROUNDS='$(BCRYPT_ROUNDS)' \
+                          MAX_LOGIN_ATTEMPTS='$(MAX_LOGIN_ATTEMPTS)' \
+                          LOCKOUT_DURATION='$(LOCKOUT_DURATION)' \
+                        --output none
+
+                      # Get the application URL
+                      APP_URL=$(az containerapp show --resource-group $RESOURCE_GROUP --name $CONTAINER_APP_NAME --query properties.configuration.ingress.fqdn --output tsv)
+                      echo "Production deployment completed. API available at: https://$APP_URL"
+
+  # Stage 4: Post-Deployment Tests
+  - stage: PostDeployTests
+    displayName: 'Post-Deployment Tests'
+    dependsOn:
+      - DeployDev
+      - DeployProd
+    condition: succeeded()
+    jobs:
+      - job: HealthCheck
+        displayName: 'Run Health Checks'
+        pool:
+          vmImage: 'ubuntu-latest'
+
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Health Check - Development'
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/develop')
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                RESOURCE_GROUP="aiiforsa-dev-rg"
+                CONTAINER_NAME="aiiforsa-api-dev"
+
+                # Get container IP
+                PUBLIC_IP=$(az container show --resource-group $RESOURCE_GROUP --name $CONTAINER_NAME --query ipAddress.ip --output tsv)
+
+                # Wait for container to be ready
+                echo "Waiting for container to be ready..."
+                sleep 60
+
+                # Test health endpoint
+                for i in {1..10}; do
+                  if curl -f -s "http://$PUBLIC_IP:4050/api/v1/health" > /dev/null; then
+                    echo "✅ Development health check passed"
+                    exit 0
+                  fi
+                  echo "Attempt $i failed, retrying in 10 seconds..."
+                  sleep 10
+                done
+                echo "❌ Development health check failed"
+                exit 1
+
+          - task: AzureCLI@2
+            displayName: 'Health Check - Production'
+            condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+            inputs:
+              azureSubscription: $(azureSubscription)
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                RESOURCE_GROUP="$(resourceGroupName)"
+                CONTAINER_APP_NAME="$(containerAppName)"
+
+                # Get container app URL
+                APP_URL=$(az containerapp show --resource-group $RESOURCE_GROUP --name $CONTAINER_APP_NAME --query properties.configuration.ingress.fqdn --output tsv)
+
+                # Wait for container to be ready
+                echo "Waiting for container app to be ready..."
+                sleep 120
+
+                # Test health endpoint
+                for i in {1..15}; do
+                  if curl -f -s "https://$APP_URL/api/v1/health" > /dev/null; then
+                    echo "✅ Production health check passed"
+                    exit 0
+                  fi
+                  echo "Attempt $i failed, retrying in 15 seconds..."
+                  sleep 15
+                done
+                echo "❌ Production health check failed"
+                exit 1
