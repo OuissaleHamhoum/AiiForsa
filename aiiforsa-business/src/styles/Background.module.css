@@ -1,0 +1,25 @@
+/* Multi-color dual radial gradient from dark blue/purple to reddish-brown */
+.radial-background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background:
+        radial-gradient(
+            ellipse 90% 130% at 15% 75%,
+            #170616 0%,
+            #170616 10%,
+            #0d0e1a8c 20%,
+            transparent 70%
+        ),
+        radial-gradient(
+            ellipse 110% 110% at 70% 55%,
+            #612f25 0%,
+            #2d131b 25%,
+            transparent 60%
+        );
+    background-color: #04020a;
+    z-index: -1;
+    pointer-events: none;
+}
