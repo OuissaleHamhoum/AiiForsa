@@ -1,0 +1,4 @@
+fastrtc[stt,tts]
+groq
+python-dotenv
+gradio
