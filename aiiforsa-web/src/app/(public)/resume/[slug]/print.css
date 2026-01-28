@@ -1,0 +1,62 @@
+/* Print Styles for Public Resume Viewer */
+@media print {
+    /* Hide non-printable elements */
+    .print\:hidden {
+        display: none !important;
+    }
+
+    /* Remove shadows and borders for cleaner print */
+    .print\:shadow-none {
+        box-shadow: none !important;
+    }
+
+    .print\:border-0 {
+        border: none !important;
+    }
+
+    /* Preserve gradient backgrounds */
+    .print\:bg-gradient-to-r {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Page setup */
+    @page {
+        size: A4;
+        margin: 1cm;
+    }
+
+    /* Avoid page breaks inside sections */
+    section {
+        page-break-inside: avoid;
+    }
+
+    /* Remove padding/margin adjustments for print */
+    .print\:py-0 {
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+
+    /* Ensure colors are preserved */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Font size adjustments */
+    body {
+        font-size: 11pt;
+    }
+
+    h1 {
+        font-size: 24pt;
+    }
+
+    h2 {
+        font-size: 18pt;
+    }
+
+    h3 {
+        font-size: 14pt;
+    }
+}

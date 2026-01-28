@@ -1,0 +1,569 @@
+'use client';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import {
+    updateUserProfile,
+    uploadAvatar,
+    uploadCoverImage,
+} from '@/actions/user-actions';
+import { User, UserUpdatePayload } from '@/types/user.types';
+import {
+    Award,
+    Book,
+    Briefcase,
+    Code,
+    Globe,
+    GraduationCap,
+    Heart,
+    Link as LinkIcon,
+    MapPin,
+    Settings,
+    Star,
+    Users,
+} from 'lucide-react';
+import { useState } from 'react';
+import { EditableField } from './EditableField';
+import { ProfileAvatar } from './ProfileAvatar';
+import { ProfileBanner } from './ProfileBanner';
+import { RelatedListSection } from './RelatedListSection';
+
+interface ProfilePageProps {
+    initialUser: User;
+    onUserUpdate?: (user: User) => void;
+}
+
+/**
+ * Main profile page component
+ * Orchestrates all profile sections and handles state management
+ * Facebook-style layout with banner, avatar, and collapsible sections
+ */
+export function ProfilePage({ initialUser, onUserUpdate }: ProfilePageProps) {
+    const [user, setUser] = useState<User>(initialUser);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+    const [isUploadingCover, setIsUploadingCover] = useState(false);
+
+    // Update user field (optimistic UI)
+    const handleFieldUpdate = async (
+        field: keyof UserUpdatePayload,
+        value: string,
+    ) => {
+        const previousValue = user[field];
+
+        // Optimistic update
+        setUser(prev => ({ ...prev, [field]: value }));
+
+        try {
+            const result = await updateUserProfile(user.id, { [field]: value });
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to update user');
+            }
+            if (result.data) {
+                onUserUpdate?.(result.data as unknown as User);
+            }
+        } catch (error) {
+            // Rollback on error
+            setUser(prev => ({ ...prev, [field]: previousValue }));
+            throw error;
+        }
+    };
+
+    // Upload avatar
+    const handleAvatarUpload = async (file: File) => {
+        setIsUploadingAvatar(true);
+        try {
+            const result = await uploadAvatar(user.id, file);
+            if (!result.success || !result.data) {
+                throw new Error(result.error || 'Failed to upload avatar');
+            }
+            setUser(prev => ({
+                ...prev,
+                profilePicture: result.data!.avatarUrl,
+            }));
+            onUserUpdate?.({ ...user, profilePicture: result.data!.avatarUrl });
+        } catch (error) {
+            throw error;
+        } finally {
+            setIsUploadingAvatar(false);
+        }
+    };
+
+    // Upload cover
+    const handleCoverUpload = async (file: File) => {
+        setIsUploadingCover(true);
+        try {
+            const result = await uploadCoverImage(user.id, file);
+            if (!result.success || !result.data) {
+                throw new Error(result.error || 'Failed to upload cover image');
+            }
+            setUser(prev => ({ ...prev, coverImage: result.data!.coverUrl }));
+            onUserUpdate?.({ ...user, coverImage: result.data!.coverUrl });
+        } catch (error) {
+            throw error;
+        } finally {
+            setIsUploadingCover(false);
+        }
+    };
+
+    const fullName = `${user.firstName} ${user.lastName}`;
+
+    return (
+        <div className="min-h-screen bg-background pb-16">
+            {/* Banner and Avatar Section */}
+            <div className="relative">
+                <ProfileBanner
+                    coverImage={user.coverImage}
+                    onUpload={handleCoverUpload}
+                    isUploading={isUploadingCover}
+                />
+
+                <div className="max-w-6xl mx-auto px-4">
+                    <div className="relative -mt-20 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                        <div className="flex flex-col md:flex-row md:items-end gap-4">
+                            <ProfileAvatar
+                                avatar={user.profilePicture}
+                                userName={fullName}
+                                onUpload={handleAvatarUpload}
+                                isUploading={isUploadingAvatar}
+                            />
+
+                            <div className="mb-4">
+                                <h1 className="text-3xl font-bold">
+                                    {fullName}
+                                </h1>
+                                <p className="text-lg text-muted-foreground">
+                                    {user.headline}
+                                </p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    {user.currentJobTitle} at{' '}
+                                    {user.currentCompany}
+                                </p>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                    <span className="text-sm text-muted-foreground">
+                                        {user.city}, {user.state},{' '}
+                                        {user.country}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <Button variant="outline" className="gap-2">
+                            <Settings className="h-4 w-4" />
+                            Settings
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="max-w-6xl mx-auto px-4 mt-8 space-y-6">
+                {/* Basic Information */}
+                <Card className="p-6">
+                    <h2 className="text-2xl font-semibold mb-6">
+                        Basic Information
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <EditableField
+                            label="First Name"
+                            value={user.firstName}
+                            onSave={value =>
+                                handleFieldUpdate('firstName', value)
+                            }
+                            required
+                        />
+
+                        <EditableField
+                            label="Last Name"
+                            value={user.lastName}
+                            onSave={value =>
+                                handleFieldUpdate('lastName', value)
+                            }
+                            required
+                        />
+
+                        <EditableField
+                            label="Email"
+                            value={user.email}
+                            onSave={value => handleFieldUpdate('email', value)}
+                            type="email"
+                            required
+                            validate={value => {
+                                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                                return emailRegex.test(value)
+                                    ? null
+                                    : 'Invalid email address';
+                            }}
+                        />
+
+                        <EditableField
+                            label="Phone Number"
+                            value={user.phoneNumber}
+                            onSave={value =>
+                                handleFieldUpdate('phoneNumber', value)
+                            }
+                            type="tel"
+                        />
+
+                        <EditableField
+                            label="Date of Birth"
+                            value={user.dateOfBirth}
+                            onSave={value =>
+                                handleFieldUpdate('dateOfBirth', value)
+                            }
+                            type="date"
+                        />
+
+                        <EditableField
+                            label="Current Job Title"
+                            value={user.currentJobTitle}
+                            onSave={value =>
+                                handleFieldUpdate('currentJobTitle', value)
+                            }
+                        />
+
+                        <EditableField
+                            label="Current Company"
+                            value={user.currentCompany}
+                            onSave={value =>
+                                handleFieldUpdate('currentCompany', value)
+                            }
+                        />
+
+                        <EditableField
+                            label="Years of Experience"
+                            value={user.yearsOfExperience?.toString()}
+                            onSave={value =>
+                                handleFieldUpdate('yearsOfExperience', value)
+                            }
+                        />
+                    </div>
+
+                    <Separator className="my-6" />
+
+                    <EditableField
+                        label="Professional Headline"
+                        value={user.headline}
+                        onSave={value => handleFieldUpdate('headline', value)}
+                        placeholder="e.g., Full-Stack Developer | Cloud Expert"
+                    />
+
+                    <EditableField
+                        label="Bio"
+                        value={user.bio}
+                        onSave={value => handleFieldUpdate('bio', value)}
+                        type="textarea"
+                        placeholder="Tell us about yourself..."
+                    />
+                </Card>
+
+                {/* Location Information */}
+                <Card className="p-6">
+                    <h2 className="text-2xl font-semibold mb-6">Location</h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <EditableField
+                            label="City"
+                            value={user.city}
+                            onSave={value => handleFieldUpdate('city', value)}
+                        />
+
+                        <EditableField
+                            label="State/Province"
+                            value={user.state}
+                            onSave={value => handleFieldUpdate('state', value)}
+                        />
+
+                        <EditableField
+                            label="Country"
+                            value={user.country}
+                            onSave={value =>
+                                handleFieldUpdate('country', value)
+                            }
+                        />
+                    </div>
+                </Card>
+
+                {/* Skills */}
+                <RelatedListSection
+                    title="Skills"
+                    icon={<Code className="h-5 w-5" />}
+                    items={user.skills}
+                    renderItem={skill => (
+                        <div>
+                            <div className="flex items-center justify-between">
+                                <h4 className="font-semibold">{skill.name}</h4>
+                                <Badge variant="outline">{skill.level}</Badge>
+                            </div>
+                        </div>
+                    )}
+                />
+
+                {/* Work Experience */}
+                <RelatedListSection
+                    title="Work Experience"
+                    icon={<Briefcase className="h-5 w-5" />}
+                    items={user.experiences}
+                    renderItem={exp => (
+                        <div>
+                            <h4 className="font-semibold">{exp.jobTitle}</h4>
+                            <p className="text-muted-foreground">
+                                {exp.company}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {new Date(exp.startDate).toLocaleDateString()} -
+                                {exp.current
+                                    ? ' Present'
+                                    : exp.endDate
+                                      ? ` ${new Date(exp.endDate).toLocaleDateString()}`
+                                      : ''}
+                                {exp.location && ` • ${exp.location}`}
+                            </p>
+                            {exp.description && (
+                                <p className="text-sm mt-2">
+                                    {exp.description}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                />
+
+                {/* Education */}
+                <RelatedListSection
+                    title="Education"
+                    icon={<GraduationCap className="h-5 w-5" />}
+                    items={user.education}
+                    renderItem={edu => (
+                        <div>
+                            <h4 className="font-semibold">
+                                {edu.degree} in {edu.fieldOfStudy}
+                            </h4>
+                            <p className="text-muted-foreground">
+                                {edu.institution}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {new Date(edu.startDate).toLocaleDateString()} -
+                                {!edu.endDate
+                                    ? ' Present'
+                                    : ` ${new Date(edu.endDate).toLocaleDateString()}`}
+                                {edu.grade && ` • ${edu.grade}`}
+                            </p>
+                        </div>
+                    )}
+                />
+
+                {/* Certifications */}
+                <RelatedListSection
+                    title="Certifications"
+                    icon={<Award className="h-5 w-5" />}
+                    items={user.certifications}
+                    renderItem={cert => (
+                        <div>
+                            <h4 className="font-semibold">{cert.name}</h4>
+                            <p className="text-muted-foreground">
+                                {cert.issuingOrganization}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Issued:{' '}
+                                {new Date(cert.issueDate).toLocaleDateString()}
+                                {cert.expiryDate &&
+                                    ` • Expires: ${new Date(cert.expiryDate).toLocaleDateString()}`}
+                            </p>
+                            {cert.credentialUrl && (
+                                <a
+                                    href={cert.credentialUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-primary hover:underline mt-1 inline-block"
+                                >
+                                    View Credential
+                                </a>
+                            )}
+                        </div>
+                    )}
+                />
+
+                {/* Languages */}
+                <RelatedListSection
+                    title="Languages"
+                    icon={<Globe className="h-5 w-5" />}
+                    items={user.languages}
+                    renderItem={lang => (
+                        <div className="flex items-center justify-between">
+                            <span className="font-medium">{lang.name}</span>
+                            <Badge>{lang.proficiency}</Badge>
+                        </div>
+                    )}
+                />
+
+                {/* Projects */}
+                <RelatedListSection
+                    title="Projects"
+                    icon={<Code className="h-5 w-5" />}
+                    items={user.projects}
+                    renderItem={project => (
+                        <div>
+                            <h4 className="font-semibold">{project.name}</h4>
+                            {project.role && (
+                                <p className="text-muted-foreground text-sm">
+                                    {project.role}
+                                </p>
+                            )}
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {project.startDate &&
+                                    new Date(
+                                        project.startDate,
+                                    ).toLocaleDateString()}{' '}
+                                -
+                                {!project.endDate
+                                    ? ' Present'
+                                    : ` ${project.endDate && new Date(project.endDate).toLocaleDateString()}`}
+                            </p>
+                            {project.description && (
+                                <p className="text-sm mt-2">
+                                    {project.description}
+                                </p>
+                            )}
+                            {project.technologies && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    Technologies: {project.technologies}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                />
+
+                {/* Awards */}
+                <RelatedListSection
+                    title="Awards & Honors"
+                    icon={<Star className="h-5 w-5" />}
+                    items={user.awards}
+                    renderItem={award => (
+                        <div>
+                            <h4 className="font-semibold">{award.title}</h4>
+                            <p className="text-muted-foreground">
+                                {award.issuer}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {new Date(award.date).toLocaleDateString()}
+                            </p>
+                            {award.description && (
+                                <p className="text-sm mt-2">
+                                    {award.description}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                />
+
+                {/* Publications */}
+                <RelatedListSection
+                    title="Publications"
+                    icon={<Book className="h-5 w-5" />}
+                    items={user.publications}
+                    renderItem={pub => (
+                        <div>
+                            <h4 className="font-semibold">{pub.title}</h4>
+                            {pub.publisher && (
+                                <p className="text-muted-foreground">
+                                    {pub.publisher}
+                                </p>
+                            )}
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {new Date(
+                                    pub.publicationDate,
+                                ).toLocaleDateString()}
+                            </p>
+                            {pub.url && (
+                                <a
+                                    href={pub.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-primary hover:underline mt-1 inline-block"
+                                >
+                                    View Publication
+                                </a>
+                            )}
+                        </div>
+                    )}
+                />
+
+                {/* Volunteer Work */}
+                <RelatedListSection
+                    title="Volunteer Experience"
+                    icon={<Heart className="h-5 w-5" />}
+                    items={user.volunteerWork}
+                    renderItem={vol => (
+                        <div>
+                            <h4 className="font-semibold">{vol.role}</h4>
+                            <p className="text-muted-foreground">
+                                {vol.organization}
+                            </p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {new Date(vol.startDate).toLocaleDateString()} -
+                                {!vol.endDate
+                                    ? ' Present'
+                                    : ` ${vol.endDate && new Date(vol.endDate).toLocaleDateString()}`}
+                            </p>
+                            {vol.description && (
+                                <p className="text-sm mt-2">
+                                    {vol.description}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                />
+
+                {/* References */}
+                <RelatedListSection
+                    title="References"
+                    icon={<Users className="h-5 w-5" />}
+                    items={user.references}
+                    renderItem={ref => (
+                        <div>
+                            <h4 className="font-semibold">{ref.name}</h4>
+                            {ref.jobTitle && ref.company && (
+                                <p className="text-muted-foreground">
+                                    {ref.jobTitle} at {ref.company}
+                                </p>
+                            )}
+                            {ref.relationship && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                    {ref.relationship}
+                                </p>
+                            )}
+                            {ref.email && (
+                                <p className="text-sm mt-1">{ref.email}</p>
+                            )}
+                        </div>
+                    )}
+                />
+
+                {/* Social Links */}
+                <RelatedListSection
+                    title="Social Links"
+                    icon={<LinkIcon className="h-5 w-5" />}
+                    items={user.customLinks}
+                    renderItem={link => (
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="font-semibold">{link.title}</h4>
+                                <a
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-primary hover:underline"
+                                >
+                                    {link.url}
+                                </a>
+                            </div>
+                        </div>
+                    )}
+                />
+            </div>
+        </div>
+    );
+}

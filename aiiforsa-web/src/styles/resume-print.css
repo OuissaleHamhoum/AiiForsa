@@ -1,0 +1,139 @@
+/**
+ * Resume Print Styles
+ * Global A4 print styles for professional resume rendering and PDF export
+ */
+
+/* A4 Page Configuration */
+@page {
+    size: A4;
+    margin: 20mm;
+}
+
+/* Print-specific body styles */
+@media print {
+    body {
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+
+    /* Hide non-printable elements */
+    .no-print,
+    nav,
+    header,
+    footer,
+    .sidebar {
+        display: none !important;
+    }
+
+    /* Ensure colors and backgrounds are preserved */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Remove shadows and unnecessary effects */
+    .print-clean {
+        box-shadow: none !important;
+        border: none !important;
+    }
+}
+
+/* Page Break Rules for Multi-Page Support */
+.resume-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.resume-entry {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.resume-header {
+    page-break-after: avoid;
+    break-after: avoid;
+}
+
+.resume-page {
+    page-break-after: always;
+    break-after: page;
+}
+
+/* Prevent orphans and widows */
+p {
+    orphans: 3;
+    widows: 3;
+}
+
+/* Heading page break control */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+/* List page break control */
+ul,
+ol {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+li {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+/* A4 Paper Dimensions */
+.a4-page {
+    width: 210mm;
+    min-height: 297mm;
+    background: white;
+    position: relative;
+}
+
+/* Professional Typography */
+.resume-text {
+    font-family: 'Inter', 'Roboto', 'Lato', 'Source Sans Pro', sans-serif;
+    color: #1a1a1a;
+    line-height: 1.5;
+}
+
+.resume-name {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.resume-heading {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.resume-subheading {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.resume-body {
+    font-size: 11px;
+    line-height: 1.6;
+}
+
+/* Ensure proper spacing for print */
+@media print {
+    .a4-page {
+        margin: 0;
+        box-shadow: none;
+    }
+}
